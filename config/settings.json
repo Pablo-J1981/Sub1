@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "display": {
+    "animation_fps": 60,
+    "pet_scale": 4
+  },
+  "debug": {
+    "placeholder_frame_size": [32, 32]
+  }
+}
