@@ -63,12 +63,33 @@ class WalkerConfig:
 
 
 @dataclass(frozen=True)
+class PointerConfig:
+    drag_threshold_px: float  # 원본 px. 누른 채 이만큼 움직여야 드래그로 본다
+    min_stroke_px: float      # 원본 px. 쓰다듬기 한 번으로 인정하는 좌우 왕복의 한쪽 거리
+    throw_inertia: float      # 놓을 때 마우스 속도에 곱하는 배율 (던지기 관성)
+    max_throw_speed: float    # 원본 px/s. 던지는 속도 상한
+    velocity_window_s: float  # 던지기 속도를 재는 최근 구간(초)
+
+
+@dataclass(frozen=True)
+class MoodConfig:
+    start: float              # 0~100. 실행 직후 기분
+    pet_gain: float           # 쓰다듬기 한 번에 오르는 기분
+    pet_joy_duration_s: float # 쓰다듬기 후 기뻐하는 시간(초)
+    drop_penalty: float       # 들었다 놓을 때 내려가는 기분
+    decay_per_s: float        # 중립(50)을 향해 초당 움직이는 양
+    sad_below: float          # 이 값 이하이면 우울한 그림을 보인다
+
+
+@dataclass(frozen=True)
 class AppConfig:
     version: int
     display: DisplayConfig
     debug: DebugConfig
     physics: PhysicsConfig
     walker: WalkerConfig
+    pointer: PointerConfig
+    mood: MoodConfig
 
 
 def _require_dict(data: Any, key: str) -> dict:
@@ -146,6 +167,8 @@ def parse_config(data: dict) -> AppConfig:
     debug = _require_dict(data, "debug")
     physics = _require_dict(data, "physics")
     walker = _require_dict(data, "walker")
+    pointer = _require_dict(data, "pointer")
+    mood = _require_dict(data, "mood")
 
     frame_size = debug.get("placeholder_frame_size")
     if (
@@ -188,6 +211,21 @@ def parse_config(data: dict) -> AppConfig:
             sit_duration_s=_require_pair(walker, "sit_duration_s", 0, 3600),
             sleep_duration_s=_require_pair(walker, "sleep_duration_s", 0, 3600),
             action_weights=_require_weights(walker, "action_weights"),
+        ),
+        pointer=PointerConfig(
+            drag_threshold_px=_require_number(pointer, "drag_threshold_px", 0, 1000),
+            min_stroke_px=_require_number(pointer, "min_stroke_px", 0, 1000),
+            throw_inertia=_require_number(pointer, "throw_inertia", 0, 3),
+            max_throw_speed=_require_number(pointer, "max_throw_speed", 0, 10_000),
+            velocity_window_s=_require_number(pointer, "velocity_window_s", 0.01, 1),
+        ),
+        mood=MoodConfig(
+            start=_require_number(mood, "start", 0, 100),
+            pet_gain=_require_number(mood, "pet_gain", 0, 100),
+            pet_joy_duration_s=_require_number(mood, "pet_joy_duration_s", 0, 60),
+            drop_penalty=_require_number(mood, "drop_penalty", 0, 100),
+            decay_per_s=_require_number(mood, "decay_per_s", 0, 100),
+            sad_below=_require_number(mood, "sad_below", 0, 100),
         ),
     )
 

@@ -13,7 +13,9 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from core.config import load_config  # noqa: E402
 from core.geometry import MonitorInfo, Rect  # noqa: E402
+from core.mood import Mood  # noqa: E402
 from core.pet_spec import load_pet_spec, parse_pet_spec  # noqa: E402
+from core.pointer import PetPointer  # noqa: E402
 from core.world import build_snapshot  # noqa: E402
 from pets import create_pet  # noqa: E402
 from ui.pet_view import PetView  # noqa: E402
@@ -29,7 +31,15 @@ def qapp():
     return QApplication.instance() or QApplication([])
 
 
-def _make_view(seed=1):
+class FakeCursor:
+    def __init__(self, x=0, y=0):
+        self.x, self.y = x, y
+
+    def __call__(self):
+        return (self.x, self.y)
+
+
+def _make_view(seed=1, cursor=None):
     spec = load_pet_spec(ROOT / "assets" / "pets" / "dog")
     sprites = SpriteBank(spec)
     sprites.load()
@@ -40,7 +50,18 @@ def _make_view(seed=1):
     poller = WorldPoller(CFG.physics.window_poll_hz, CFG.physics.min_surface_width)
     mon = MonitorInfo(rect=Rect(0, 0, 1000, 800), work=Rect(0, 0, 1000, 760))
     poller.latest = build_snapshot([], [mon], CFG.physics.min_surface_width)
-    view = PetView(body, spec, sprites, poller, pet_scale=1, fps=60)
+    pointer = PetPointer(
+        drag_threshold=CFG.pointer.drag_threshold_px,
+        min_stroke=CFG.pointer.min_stroke_px,
+        throw_inertia=CFG.pointer.throw_inertia,
+        max_throw_speed=CFG.pointer.max_throw_speed,
+        velocity_window_s=CFG.pointer.velocity_window_s,
+    )
+    view = PetView(
+        body, spec, sprites, poller, pet_scale=1, fps=60,
+        mood=Mood(CFG.mood), pointer=pointer,
+        cursor=cursor if cursor is not None else FakeCursor(),
+    )
     view.spawn(500, 100)
     return view
 

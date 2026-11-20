@@ -4,6 +4,7 @@
 - 지상: IDLE / WALK / SIT / SLEEP (무작위 전환), SCARED (가장자리), LAND (착지 직후)
 - 공중: FALL (낙하), JUMP_OFF (가장자리에서 뛰어내림)
 - 특수: STARTLED (발판 창이 닫힘/최소화/최대화) -> 놀란 뒤 FALL
+- 마우스: HELD (드래그로 들고 있는 중). 놓으면 던진 속도로 FALL
 
 발판 규칙
 - 발이 닿은 발판이 사라지면, 창 자체가 사라졌거나 발판 자격을 잃었으면 STARTLED,
@@ -32,6 +33,7 @@ class WalkerState(Enum):
     STARTLED = auto()
     FALL = auto()
     JUMP_OFF = auto()
+    HELD = auto()
 
 
 BEHAVIOR_STATES = {
@@ -55,6 +57,7 @@ _ACTION_BY_STATE = {
     WalkerState.STARTLED: "scared",
     WalkerState.FALL: "fall",
     WalkerState.JUMP_OFF: "jump",
+    WalkerState.HELD: "held",
 }
 
 
@@ -94,6 +97,7 @@ class WalkerPet(PetBody):
         self._jump_planned = False
         self._monitor: Rect | None = None   # 모니터 전체 영역 (벽 판정용)
         self._work: Rect | None = None      # 작업 영역 (공중에서 x 제한용)
+        self._works: list[Rect] = []        # 모든 모니터의 작업 영역 (드래그 범위용)
 
     # ------------------------------------------------------------------ 외부 인터페이스
 
@@ -114,6 +118,56 @@ class WalkerPet(PetBody):
 
     def is_grounded(self) -> bool:
         return self.state in GROUNDED_STATES
+
+    def is_held(self) -> bool:
+        return self.state is WalkerState.HELD
+
+    def hold(self, cx: float, feet_y: float) -> None:
+        """드래그 중: 마우스가 준 위치로 옮기고 물리 상태를 멈춘다.
+
+        위치는 그 위치가 속한 모니터의 작업 영역 안에 맞춰 제한한다 (상단은 화면 밖으로 나가지 않게).
+        """
+        self._seg = None
+        self._departed = None
+        self.vx = 0.0
+        self.vy = 0.0
+        work = self._work_at(cx)
+        if work is not None:
+            half = self.half_width
+            lo, hi = work.left + half, work.right - half
+            if lo <= hi:
+                cx = min(max(cx, lo), hi)
+            feet_y = min(max(feet_y, work.top + self.ground_offset), work.bottom)
+        self.cx = float(cx)
+        self.feet_y = float(feet_y)
+        self._begin(WalkerState.HELD, 0.0)
+
+    def _work_at(self, x: float) -> Rect | None:
+        """x가 속한 모니터의 작업 영역. 없으면 마지막으로 본 작업 영역."""
+        for work in self._works:
+            if work.left <= x < work.right:
+                return work
+        return self._work
+
+    def on_petted(self, seconds: float) -> None:
+        """쓰다듬기: 지상에 있으면 제자리에서 멈춘 채 기뻐하는 그림을 보인다."""
+        if self.is_grounded():
+            self.command("idle", duration=seconds)
+
+    def release(self, vx: float, vy: float) -> None:
+        """드래그를 놓는다. 던진 속도(물리 px/s)로 낙하를 시작한다.
+
+        놓는 위치는 hold()에서 이미 작업 영역 안으로 제한됐다.
+        """
+        if self.state is not WalkerState.HELD:
+            return
+        self.vx = float(vx)
+        self.vy = float(vy)
+        if self.vx > 0:
+            self.facing = 1
+        elif self.vx < 0:
+            self.facing = -1
+        self._begin(WalkerState.FALL, 0.0)
 
     def command(self, behavior: str, direction: int = 0, duration: float | None = None) -> bool:
         """지상에서 idle/walk/sit/sleep 중 하나를 시작한다.
@@ -145,8 +199,11 @@ class WalkerPet(PetBody):
             return
         self._monitor = mon.rect
         self._work = mon.work
+        self._works = [m.work for m in world.monitors]
         surfaces = world.surfaces_on(mon.rect)
 
+        if self.state is WalkerState.HELD:
+            return  # 마우스가 위치를 정한다
         if self.state is WalkerState.STARTLED:
             self.timer -= dt
             if self.timer <= 0:

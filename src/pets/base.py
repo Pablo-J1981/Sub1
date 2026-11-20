@@ -45,3 +45,19 @@ class PetBody(ABC):
     @abstractmethod
     def action(self) -> str:
         """지금 보여 줄 동작 이름 (pet.json의 actions 키)."""
+
+    @abstractmethod
+    def is_grounded(self) -> bool:
+        """발판 위에 서 있거나 걷는 중인지 (공중, 드래그 중이면 False)."""
+
+    @abstractmethod
+    def hold(self, cx: float, feet_y: float) -> None:
+        """드래그 중: 마우스가 준 위치로 옮기고 물리 계산을 멈춘다."""
+
+    @abstractmethod
+    def release(self, vx: float, vy: float) -> None:
+        """드래그를 놓는다. (vx, vy)는 던지는 속도(물리 px/s)다."""
+
+    @abstractmethod
+    def on_petted(self, seconds: float) -> None:
+        """쓰다듬기: 가능하면 잠시 멈추고 기뻐하는 시간을 준다."""

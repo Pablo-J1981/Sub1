@@ -92,6 +92,24 @@ if IS_WINDOWS:
     _dwmapi.DwmGetWindowAttribute.restype = ctypes.c_long  # HRESULT
 
 
+class _POINT(ctypes.Structure):
+    _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
+
+
+if IS_WINDOWS:
+    _user32.GetCursorPos.argtypes = [ctypes.POINTER(_POINT)]
+    _user32.GetCursorPos.restype = wintypes.BOOL
+
+
+def get_cursor_pos() -> tuple[int, int]:
+    """마우스 커서 위치(물리 픽셀). 프로세스가 Per-Monitor DPI v2 상태여야 맞다."""
+    if not IS_WINDOWS:
+        return (0, 0)
+    p = _POINT()
+    _user32.GetCursorPos(ctypes.byref(p))
+    return (p.x, p.y)
+
+
 def _to_rect(r: _RECT) -> Rect:
     return Rect(r.left, r.top, r.right, r.bottom)
 

@@ -43,6 +43,10 @@ def test_shipped_settings_file_is_valid():
         lambda d: d["walker"].update(idle_duration_s=[5, 1]),  # 최소 > 최대
         lambda d: d["walker"]["action_weights"].update(idle=-1),
         lambda d: d["walker"].update(action_weights={"idle": 1}),
+        lambda d: d["pointer"].update(throw_inertia=-1),
+        lambda d: d["pointer"].update(velocity_window_s=0),
+        lambda d: d["mood"].update(start=101),
+        lambda d: d.pop("mood"),
     ],
 )
 def test_invalid_config_raises(mutate):

@@ -32,6 +32,8 @@ class OverlayWindow(QWidget):
         self._label = QLabel(self)
         self._label.setStyleSheet("background: transparent;")
         self._label.move(0, 0)
+        # 마우스 이벤트는 바깥 창이 받는다 (라벨이 가로채면 호버/드래그 판정이 깨진다)
+        self._label.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
 
     def set_art(self, image: QImage, base_scale: int) -> None:
         """그림을 정수 배율로 최근접 이웃 확대해 표시하고 클릭 영역을 갱신한다.

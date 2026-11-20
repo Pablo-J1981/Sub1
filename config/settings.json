@@ -36,5 +36,20 @@
       "sit": 0.15,
       "sleep": 0.1
     }
+  },
+  "pointer": {
+    "drag_threshold_px": 4,
+    "min_stroke_px": 20,
+    "throw_inertia": 0.8,
+    "max_throw_speed": 1200,
+    "velocity_window_s": 0.1
+  },
+  "mood": {
+    "start": 60,
+    "pet_gain": 4,
+    "pet_joy_duration_s": 3.0,
+    "drop_penalty": 3,
+    "decay_per_s": 0.5,
+    "sad_below": 20
   }
 }

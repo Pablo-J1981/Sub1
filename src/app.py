@@ -13,7 +13,9 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from core.config import AppConfig, ConfigError, load_config
 from core.geometry import spawn_point
 from core.logging_setup import install_excepthook, setup_logging
+from core.mood import Mood
 from core.pet_spec import load_pet_spec
+from core.pointer import PetPointer
 from core.render_math import physical_scale
 from pets import create_pet
 from platform_win.dpi import enable_per_monitor_dpi_v2
@@ -69,10 +71,22 @@ class DesktopPetApp:
             behavior=cfg.walker,
             rng=random.Random(),
         )
+        pointer_cfg = cfg.pointer
+        pointer = PetPointer(
+            drag_threshold=pointer_cfg.drag_threshold_px * factor,
+            min_stroke=pointer_cfg.min_stroke_px * factor,
+            throw_inertia=pointer_cfg.throw_inertia,
+            max_throw_speed=pointer_cfg.max_throw_speed * factor,
+            velocity_window_s=pointer_cfg.velocity_window_s,
+        )
         self._pet = PetView(
             body, spec, sprites, self._poller,
             cfg.display.pet_scale, cfg.display.animation_fps,
+            mood=Mood(cfg.mood),
+            pointer=pointer,
         )
+        self._pet.hideRequested.connect(self.toggle_visible)
+        self._pet.quitRequested.connect(self.quit)
         cx, feet_y = self._spawn_point(factor)
         self._pet.spawn(cx, feet_y)
         self._pet.show()
