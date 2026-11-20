@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -8,11 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def _valid() -> dict:
-    return {
-        "version": 1,
-        "display": {"animation_fps": 60, "pet_scale": 4},
-        "debug": {"placeholder_frame_size": [32, 32]},
-    }
+    return json.loads((ROOT / "config" / "settings.json").read_text(encoding="utf-8"))
 
 
 def test_parse_valid_config():
@@ -20,6 +17,9 @@ def test_parse_valid_config():
     assert cfg.display.animation_fps == 60.0
     assert cfg.display.pet_scale == 4
     assert cfg.debug.placeholder_frame_size == (32, 32)
+    assert cfg.physics.gravity == 1400
+    assert cfg.walker.jump_off_chance == 0.15
+    assert sum(cfg.walker.action_weights.values()) > 0
 
 
 def test_shipped_settings_file_is_valid():
@@ -37,6 +37,12 @@ def test_shipped_settings_file_is_valid():
         lambda d: d["debug"].update(placeholder_frame_size=[32]),
         lambda d: d["debug"].update(placeholder_frame_size=[0, 32]),
         lambda d: d.pop("display"),
+        lambda d: d.pop("physics"),
+        lambda d: d["physics"].update(gravity=0),
+        lambda d: d["walker"].update(jump_off_chance=1.5),
+        lambda d: d["walker"].update(idle_duration_s=[5, 1]),  # 최소 > 최대
+        lambda d: d["walker"]["action_weights"].update(idle=-1),
+        lambda d: d["walker"].update(action_weights={"idle": 1}),
     ],
 )
 def test_invalid_config_raises(mutate):

@@ -5,6 +5,36 @@
     "pet_scale": 4
   },
   "debug": {
-    "placeholder_frame_size": [32, 32]
+    "placeholder_frame_size": [32, 32],
+    "start_pet": "dog"
+  },
+  "physics": {
+    "gravity": 1400,
+    "max_fall_speed": 900,
+    "landing_duration_s": 0.3,
+    "min_surface_width": 24,
+    "support_tolerance": 1,
+    "window_poll_hz": 12,
+    "spawn_height": 150,
+    "max_step_s": 0.1
+  },
+  "walker": {
+    "walk_speed": 30,
+    "jump_up_speed": 260,
+    "jump_off_speed": 90,
+    "jump_off_chance": 0.15,
+    "edge_margin": 4,
+    "scared_duration_s": [1.0, 2.0],
+    "startled_duration_s": 1.2,
+    "idle_duration_s": [1.0, 3.0],
+    "walk_duration_s": [1.0, 4.0],
+    "sit_duration_s": [2.0, 5.0],
+    "sleep_duration_s": [6.0, 12.0],
+    "action_weights": {
+      "idle": 0.35,
+      "walk": 0.4,
+      "sit": 0.15,
+      "sleep": 0.1
+    }
   }
 }

@@ -2,6 +2,7 @@
   "name_ko": "상어",
   "movement": "swimmer",
   "frame_size": [64, 64],
+  "ground_y": 56,
   "stage_scale": {
     "1": 3
   },
