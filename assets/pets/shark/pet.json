@@ -1,0 +1,21 @@
+{
+  "name_ko": "상어",
+  "movement": "swimmer",
+  "frame_size": [64, 64],
+  "stage_scale": {
+    "1": 3
+  },
+  "actions": {
+    "idle":      {"file": "stage1/idle.png",      "frames": 1, "fps": 2},
+    "swim":      {"file": "stage1/swim.png",      "frames": 1, "fps": 4},
+    "startled":  {"file": "stage1/startled.png",  "frames": 1, "fps": 4},
+    "eat":       {"file": "stage1/eat.png",       "frames": 1, "fps": 4},
+    "held":      {"file": "stage1/held.png",      "frames": 1, "fps": 6},
+    "happy":     {"file": "stage1/happy.png",     "frames": 1, "fps": 4},
+    "sad":       {"file": "stage1/sad.png",       "frames": 1, "fps": 2},
+    "hungry":    {"file": "stage1/hungry.png",    "frames": 1, "fps": 2},
+    "sick":      {"file": "stage1/sick.png",      "frames": 1, "fps": 2},
+    "die":       {"file": "stage1/die.png",       "frames": 1, "fps": 2}
+  },
+  "tomb": "tomb.png"
+}
