@@ -15,7 +15,7 @@ def _valid() -> dict:
 def test_parse_valid_config():
     cfg = parse_config(_valid())
     assert cfg.display.animation_fps == 60.0
-    assert cfg.display.pet_scale == 4
+    assert cfg.display.pet_scale == 2
     assert cfg.debug.placeholder_frame_size == (32, 32)
     assert cfg.physics.gravity == 1400
     assert cfg.walker.jump_off_chance == 0.15
@@ -46,6 +46,9 @@ def test_shipped_settings_file_is_valid():
         lambda d: d["pointer"].update(throw_inertia=-1),
         lambda d: d["pointer"].update(velocity_window_s=0),
         lambda d: d["mood"].update(start=101),
+        lambda d: d["debug"].update(time_scale=0),
+        lambda d: d["debug"].update(time_scale=21),
+        lambda d: d["needs"].update(hungry_below=-1),
         lambda d: d.pop("mood"),
     ],
 )

@@ -32,6 +32,7 @@ class DisplayConfig:
 class DebugConfig:
     placeholder_frame_size: tuple[int, int]
     start_pet: str  # 저장 데이터 도입 전 임시로 띄울 동물 폴더 이름
+    time_scale: float  # 시간 배속. 1.0이 보통 속도. 펫 안의 시간(기분, 포만감, 움직임)에만 적용
 
 
 @dataclass(frozen=True)
@@ -82,6 +83,16 @@ class MoodConfig:
 
 
 @dataclass(frozen=True)
+class NeedsConfig:
+    start: float              # 0~100. 처음 포만감
+    decay_per_s: float        # 초당 줄어드는 포만감
+    hungry_below: float       # 이 값 미만이면 배고픈 그림
+    starve_death_s: float     # 포만감 0 상태가 이 시간(펫 시간, 초) 이어지면 사망
+    food_amount: float        # 먹이 한 번에 차는 포만감
+    eat_duration_s: float     # 먹는 데 걸리는 시간(초)
+
+
+@dataclass(frozen=True)
 class AppConfig:
     version: int
     display: DisplayConfig
@@ -90,6 +101,7 @@ class AppConfig:
     walker: WalkerConfig
     pointer: PointerConfig
     mood: MoodConfig
+    needs: NeedsConfig
 
 
 def _require_dict(data: Any, key: str) -> dict:
@@ -169,6 +181,7 @@ def parse_config(data: dict) -> AppConfig:
     walker = _require_dict(data, "walker")
     pointer = _require_dict(data, "pointer")
     mood = _require_dict(data, "mood")
+    needs = _require_dict(data, "needs")
 
     frame_size = debug.get("placeholder_frame_size")
     if (
@@ -187,6 +200,7 @@ def parse_config(data: dict) -> AppConfig:
         debug=DebugConfig(
             placeholder_frame_size=(frame_size[0], frame_size[1]),
             start_pet=_require_str(debug, "start_pet"),
+            time_scale=_require_number(debug, "time_scale", 0.1, 20),
         ),
         physics=PhysicsConfig(
             gravity=_require_number(physics, "gravity", 1, 20_000),
@@ -226,6 +240,14 @@ def parse_config(data: dict) -> AppConfig:
             drop_penalty=_require_number(mood, "drop_penalty", 0, 100),
             decay_per_s=_require_number(mood, "decay_per_s", 0, 100),
             sad_below=_require_number(mood, "sad_below", 0, 100),
+        ),
+        needs=NeedsConfig(
+            start=_require_number(needs, "start", 0, 100),
+            decay_per_s=_require_number(needs, "decay_per_s", 0, 100),
+            hungry_below=_require_number(needs, "hungry_below", 0, 100),
+            starve_death_s=_require_number(needs, "starve_death_s", 1, 86_400),
+            food_amount=_require_number(needs, "food_amount", 0, 100),
+            eat_duration_s=_require_number(needs, "eat_duration_s", 0.1, 60),
         ),
     )
 

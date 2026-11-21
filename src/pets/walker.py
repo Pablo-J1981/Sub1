@@ -34,6 +34,7 @@ class WalkerState(Enum):
     FALL = auto()
     JUMP_OFF = auto()
     HELD = auto()
+    EAT = auto()
 
 
 BEHAVIOR_STATES = {
@@ -44,7 +45,7 @@ BEHAVIOR_STATES = {
 }
 GROUNDED_STATES = frozenset({
     WalkerState.IDLE, WalkerState.WALK, WalkerState.SIT, WalkerState.SLEEP,
-    WalkerState.SCARED, WalkerState.LAND,
+    WalkerState.SCARED, WalkerState.LAND, WalkerState.EAT,
 })
 AIRBORNE_STATES = frozenset({WalkerState.FALL, WalkerState.JUMP_OFF})
 _ACTION_BY_STATE = {
@@ -58,7 +59,11 @@ _ACTION_BY_STATE = {
     WalkerState.FALL: "fall",
     WalkerState.JUMP_OFF: "jump",
     WalkerState.HELD: "held",
+    WalkerState.EAT: "eat",
 }
+
+# 먹이 앞에서 기다리는 동안 타이머를 멈춰 두는 큰 값 (먹이를 먹거나 목표가 취소될 때까지)
+_FOREVER_S = 1e9
 
 
 class WalkerPet(PetBody):
@@ -98,11 +103,16 @@ class WalkerPet(PetBody):
         self._monitor: Rect | None = None   # 모니터 전체 영역 (벽 판정용)
         self._work: Rect | None = None      # 작업 영역 (공중에서 x 제한용)
         self._works: list[Rect] = []        # 모든 모니터의 작업 영역 (드래그 범위용)
+        self._target: float | None = None   # 먹이 쪽으로 걷는 목표 x
+        self._at_food = False               # 목표 x에 도착해 먹기를 기다리는 중
+        self._meal_done = False             # 먹기가 끝났음 (take_meal 로 한 번만 알린다)
+        self._frozen = False                # 사망: 제자리에 멈추고 발판만 따라간다
 
     # ------------------------------------------------------------------ 외부 인터페이스
 
     def place(self, cx: float, feet_y: float) -> None:
         """위치를 지정하고 낙하 상태로 만든다 (스폰, 드래그 놓기 등)."""
+        self._clear_goal()
         self.cx = float(cx)
         self.feet_y = float(feet_y)
         self._seg = None
@@ -127,6 +137,7 @@ class WalkerPet(PetBody):
 
         위치는 그 위치가 속한 모니터의 작업 영역 안에 맞춰 제한한다 (상단은 화면 밖으로 나가지 않게).
         """
+        self._clear_goal()
         self._seg = None
         self._departed = None
         self.vx = 0.0
@@ -150,8 +161,8 @@ class WalkerPet(PetBody):
         return self._work
 
     def on_petted(self, seconds: float) -> None:
-        """쓰다듬기: 지상에 있으면 제자리에서 멈춘 채 기뻐하는 그림을 보인다."""
-        if self.is_grounded():
+        """쓰다듬기: 지상에 있으면 제자리에서 멈춘 채 기뻐하는 그림을 보인다. 먹는 중에는 무시한다."""
+        if self.is_grounded() and not self.is_eating():
             self.command("idle", duration=seconds)
 
     def release(self, vx: float, vy: float) -> None:
@@ -169,6 +180,74 @@ class WalkerPet(PetBody):
             self.facing = -1
         self._begin(WalkerState.FALL, 0.0)
 
+    # ------------------------------------------------------------------ 먹이 관련 (PetBody 기본값 재정의)
+
+    def ground_surface(self) -> Surface | None:
+        return self._seg if self.is_grounded() else None
+
+    def floor_rect(self) -> Rect | None:
+        return self._work_at(self.cx)
+
+    def reach_range(self) -> tuple[float, float] | None:
+        seg, mon = self._seg, self._monitor
+        if not self.is_grounded() or seg is None or mon is None:
+            return None
+        left, right, _, _ = self._walk_limits(seg, mon)
+        return (left, right) if left <= right else None
+
+    def walk_to(self, x: float) -> bool:
+        """현재 발판 안의 x로 걸어간다. 같은 목표를 여러 번 불러도 다시 출발하지 않는다."""
+        if self._frozen or self.state not in BEHAVIOR_STATES.values():
+            return False
+        reach = self.reach_range()
+        if reach is None:
+            return False
+        target = min(max(float(x), reach[0]), reach[1])
+        if self._target == target and (self.state is WalkerState.WALK or self._at_food):
+            return True
+        self._target = target
+        self._at_food = False
+        self._begin(WalkerState.WALK, _FOREVER_S)
+        return True
+
+    def cancel_walk(self) -> None:
+        if self._target is None:
+            return
+        self._clear_goal()
+        if self.state in (WalkerState.WALK, WalkerState.IDLE):
+            self._enter_idle()
+
+    def arrived(self) -> bool:
+        """목표 x에 도착해서 먹기를 기다리는지."""
+        seg = self._seg
+        return (
+            self._at_food
+            and self.state is WalkerState.IDLE
+            and seg is not None
+            and seg.is_floor
+        )
+
+    def begin_eat(self, duration: float) -> bool:
+        if not self.arrived():
+            return False
+        self._clear_goal()
+        self._begin(WalkerState.EAT, duration)
+        return True
+
+    def is_eating(self) -> bool:
+        return self.state is WalkerState.EAT
+
+    def take_meal(self) -> bool:
+        if not self._meal_done:
+            return False
+        self._meal_done = False
+        return True
+
+    def set_frozen(self, frozen: bool) -> None:
+        """True면 걷기와 행동 전환을 멈추고 발판만 따라간다 (사망). 낙하는 계속된다."""
+        self._frozen = bool(frozen)
+        self._clear_goal()
+
     def command(self, behavior: str, direction: int = 0, duration: float | None = None) -> bool:
         """지상에서 idle/walk/sit/sleep 중 하나를 시작한다.
 
@@ -177,8 +256,11 @@ class WalkerPet(PetBody):
         """
         if behavior not in BEHAVIOR_STATES:
             raise ValueError(f"알 수 없는 행동: {behavior!r}")
+        if self._frozen:
+            return False
         if self.state not in BEHAVIOR_STATES.values():
             return False
+        self._clear_goal()  # 먹이 걷기 등 이전 목표는 버린다
         state = BEHAVIOR_STATES[behavior]
         if state is WalkerState.WALK:
             self.facing = direction if direction in (-1, 1) else self._rng.choice((-1, 1))
@@ -209,7 +291,10 @@ class WalkerPet(PetBody):
             if self.timer <= 0:
                 self._to_fall()
         elif self.state in GROUNDED_STATES:
-            self._update_grounded(dt, world, surfaces)
+            if self._frozen:
+                self._update_frozen(world, surfaces)
+            else:
+                self._update_grounded(dt, world, surfaces)
         else:
             self._update_airborne(dt, surfaces)
 
@@ -232,6 +317,13 @@ class WalkerPet(PetBody):
             if self.timer <= 0:
                 self._finish_scared()
             return
+        if self.state is WalkerState.EAT:
+            self.timer -= dt
+            if self.timer <= 0:
+                self._clear_goal()
+                self._meal_done = True
+                self._enter_idle()
+            return
         if self.state is WalkerState.WALK:
             self._walk_step(dt)
             if self.state is not WalkerState.WALK:
@@ -239,6 +331,11 @@ class WalkerPet(PetBody):
         self.timer -= dt
         if self.timer <= 0:
             self._choose_next()
+
+    def _update_frozen(self, world: WorldSnapshot, surfaces: list[Surface]) -> None:
+        """사망: 발판만 따라가며 제자리에서 가만히 있는다."""
+        if self._track_support(world, surfaces) and self.state is not WalkerState.IDLE:
+            self._begin(WalkerState.IDLE, _FOREVER_S)
 
     def _track_support(self, world: WorldSnapshot, surfaces: list[Surface]) -> bool:
         """발판을 따라간다. 발판을 잃었으면 상태를 바꾸고 False를 반환한다."""
@@ -284,6 +381,9 @@ class WalkerPet(PetBody):
         mon = self._monitor
         if seg is None or mon is None:
             return
+        if self._target is not None:
+            self._walk_to_target(dt)
+            return
         left, right, cliff_left, cliff_right = self._walk_limits(seg, mon)
         self.cx += self.facing * self._walk_speed * dt
         if self.facing > 0 and self.cx >= right:
@@ -292,6 +392,26 @@ class WalkerPet(PetBody):
         elif self.facing < 0 and self.cx <= left:
             self.cx = left
             self._reach_edge(-1, cliff_left)
+
+    def _walk_to_target(self, dt: float) -> None:
+        target = self._target
+        seg, mon = self._seg, self._monitor
+        if target is None or seg is None or mon is None:
+            return
+        left, right, _, _ = self._walk_limits(seg, mon)
+        if not left <= target <= right:
+            # 발판이 바뀌어 목표가 닿지 않게 됐다: 목표를 버리고 평소처럼 쉰다
+            self._clear_goal()
+            self._enter_idle()
+            return
+        step = self._walk_speed * dt
+        if abs(target - self.cx) <= step:
+            self.cx = target
+            self._at_food = True
+            self._begin(WalkerState.IDLE, _FOREVER_S)  # 먹이를 먹을 때까지 기다린다
+            return
+        self.facing = 1 if target > self.cx else -1
+        self.cx += self.facing * step
 
     def _reach_edge(self, direction: int, cliff: bool) -> None:
         if not cliff:
@@ -322,6 +442,7 @@ class WalkerPet(PetBody):
     # ------------------------------------------------------------------ 공중 상태
 
     def _start_jump(self, direction: int) -> None:
+        self._clear_goal()
         self._departed = self._seg
         self._seg = None
         self.facing = direction
@@ -357,6 +478,7 @@ class WalkerPet(PetBody):
         return departed is not None and not departed.is_floor and s.owner == departed.owner
 
     def _land(self, s: Surface) -> None:
+        self._clear_goal()
         self.feet_y = float(s.y)
         self._attach(s)
         self._departed = None
@@ -377,11 +499,19 @@ class WalkerPet(PetBody):
 
     # ------------------------------------------------------------------ 상태 전환 도우미
 
+    def _clear_goal(self) -> None:
+        """먹이 쪽 걷기 목표를 버린다. 먹이용으로 길게 잡은 쉼/걷기 시간도 되돌린다."""
+        self._target = None
+        self._at_food = False
+        if self.state in (WalkerState.WALK, WalkerState.IDLE) and self.timer >= _FOREVER_S / 2:
+            self._enter_idle()
+
     def _attach(self, s: Surface) -> None:
         self._seg = s
         self.feet_y = float(s.y)
 
     def _to_fall(self) -> None:
+        self._clear_goal()
         self._departed = self._seg
         self._seg = None
         self.vx = 0.0
@@ -389,6 +519,7 @@ class WalkerPet(PetBody):
         self._begin(WalkerState.FALL, 0.0)
 
     def _to_startled(self) -> None:
+        self._clear_goal()
         self._departed = None
         self._seg = None
         self.vx = 0.0

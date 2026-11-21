@@ -2,11 +2,12 @@
   "version": 1,
   "display": {
     "animation_fps": 60,
-    "pet_scale": 4
+    "pet_scale": 2
   },
   "debug": {
     "placeholder_frame_size": [32, 32],
-    "start_pet": "dog"
+    "start_pet": "dog",
+    "time_scale": 1.0
   },
   "physics": {
     "gravity": 1400,
@@ -51,5 +52,13 @@
     "drop_penalty": 3,
     "decay_per_s": 0.5,
     "sad_below": 20
+  },
+  "needs": {
+    "start": 70,
+    "decay_per_s": 0.5,
+    "hungry_below": 30,
+    "starve_death_s": 120,
+    "food_amount": 40,
+    "eat_duration_s": 3.0
   }
 }

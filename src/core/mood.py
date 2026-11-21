@@ -28,6 +28,11 @@ class Mood:
             self.value = min(NEUTRAL, self.value + rate)
         self.joy_left = max(0.0, self.joy_left - dt)
 
+    def reset(self) -> None:
+        """다시 시작할 때 처음 기분으로 되돌린다."""
+        self.value = float(self._cfg.start)
+        self.joy_left = 0.0
+
     def petted(self) -> float:
         """쓰다듬기 한 번. 기뻐할 시간(초)을 돌려준다."""
         self.value = min(100.0, self.value + self._cfg.pet_gain)

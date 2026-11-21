@@ -1,27 +1,24 @@
 {
   "name_ko": "강아지",
   "movement": "walker",
-  "frame_size": [64, 64],
-  "ground_y": 56,
-  "stage_scale": {
-    "1": 3
-  },
+  "frame_size": [52, 52],
+  "ground_y": 46,
   "actions": {
-    "idle":    {"file": "stage1/idle.png",    "frames": 1, "fps": 2},
-    "walk":    {"file": "stage1/walk.png",    "frames": 1, "fps": 6},
-    "sit":     {"file": "stage1/sit.png",     "frames": 1, "fps": 2},
-    "sleep":   {"file": "stage1/sleep.png",   "frames": 1, "fps": 2},
-    "fall":    {"file": "stage1/fall.png",    "frames": 1, "fps": 4},
-    "land":    {"file": "stage1/land.png",    "frames": 1, "fps": 4},
-    "scared":  {"file": "stage1/scared.png",  "frames": 1, "fps": 4},
-    "jump":    {"file": "stage1/jump.png",    "frames": 1, "fps": 4},
-    "eat":     {"file": "stage1/eat.png",     "frames": 1, "fps": 4},
-    "held":    {"file": "stage1/held.png",    "frames": 1, "fps": 6},
-    "happy":   {"file": "stage1/happy.png",   "frames": 1, "fps": 4},
-    "sad":     {"file": "stage1/sad.png",     "frames": 1, "fps": 2},
-    "hungry":  {"file": "stage1/hungry.png",  "frames": 1, "fps": 2},
-    "sick":    {"file": "stage1/sick.png",    "frames": 1, "fps": 2},
-    "die":     {"file": "stage1/die.png",     "frames": 1, "fps": 2}
+    "idle":    {"file": "stage1/idle.png",    "frames": 4,  "fps": 3},
+    "walk":    {"file": "stage1/walk.png",    "frames": 8,  "fps": 10},
+    "sit":     {"file": "stage1/sit.png",     "frames": 2,  "fps": 1},
+    "sleep":   {"file": "stage1/sleep.png",   "frames": 2,  "fps": 1},
+    "fall":    {"file": "stage1/fall.png",    "frames": 4,  "fps": 8},
+    "land":    {"file": "stage1/land.png",    "frames": 2,  "fps": 8},
+    "scared":  {"file": "stage1/scared.png",  "frames": 4,  "fps": 6},
+    "jump":    {"file": "stage1/jump.png",    "frames": 2,  "fps": 6},
+    "eat":     {"file": "stage1/eat.png",     "frames": 4,  "fps": 4},
+    "held":    {"file": "stage1/held.png",    "frames": 4,  "fps": 6},
+    "happy":   {"file": "stage1/happy.png",   "frames": 4,  "fps": 4},
+    "sad":     {"file": "stage1/sad.png",     "frames": 2,  "fps": 1.5},
+    "hungry":  {"file": "stage1/hungry.png",  "frames": 2,  "fps": 1.5},
+    "sick":    {"file": "stage1/sick.png",    "frames": 2,  "fps": 2},
+    "die":     {"file": "stage1/die.png",     "frames": 2,  "fps": 2}
   },
   "tomb": "tomb.png"
 }

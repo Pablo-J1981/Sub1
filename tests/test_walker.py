@@ -256,3 +256,31 @@ def test_seeded_run_is_deterministic():
         return out
 
     assert trace(7) == trace(7)
+
+
+# ----------------------------------------------------------------- 먹이 쪽으로 걷기
+
+def test_walk_to_reaches_target_and_waits_there():
+    pet = make_pet(seed=3)
+    pet.place(cx=200, feet_y=100)
+    snap = world()
+    run(pet, 3.0, snap)  # 바닥에 내려앉는다
+    target = 600.0
+    assert pet.walk_to(target) is True
+    run(pet, 20.0, snap)
+    assert pet.arrived()
+    assert pet.cx == pytest.approx(target)
+    assert pet.begin_eat(2.0) is True
+    assert pet.is_eating()
+    run(pet, 2.5, snap)
+    assert pet.take_meal() is True
+    assert pet.take_meal() is False  # 한 번만 알린다
+
+
+def test_walk_to_is_refused_when_frozen_or_airborne():
+    pet = make_pet(seed=4)
+    pet.place(cx=200, feet_y=100)
+    assert pet.walk_to(300) is False  # 아직 공중이다
+    run(pet, 3.0, world())
+    pet.set_frozen(True)
+    assert pet.walk_to(300) is False

@@ -24,7 +24,8 @@ def _base(movement="walker"):
 def test_shipped_dog_and_shark_load():
     dog = load_pet_spec(ROOT / "assets" / "pets" / "dog")
     shark = load_pet_spec(ROOT / "assets" / "pets" / "shark")
-    assert dog.movement == "walker" and dog.ground_y == 56
+    assert dog.movement == "walker" and dog.ground_y == 46
+    assert dog.frame_size == (52, 52)
     assert shark.movement == "swimmer"
 
 

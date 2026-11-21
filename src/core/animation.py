@@ -11,3 +11,10 @@ def frame_index(elapsed: float, frames: int, fps: float) -> int:
     if frames <= 1 or fps <= 0 or elapsed <= 0:
         return 0
     return int(elapsed * fps) % frames
+
+
+def frame_index_once(elapsed: float, frames: int, fps: float) -> int:
+    """한 번만 재생하고 마지막 프레임에서 멈추는 인덱스."""
+    if frames <= 1:
+        return 0
+    return min(int(max(elapsed, 0.0) * fps), frames - 1)

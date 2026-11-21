@@ -7,13 +7,14 @@ import random
 import sys
 from pathlib import Path
 
-from PySide6.QtGui import QColor, QPixmap
+from PySide6.QtGui import QColor, QImage, QPixmap
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from core.config import AppConfig, ConfigError, load_config
 from core.geometry import spawn_point
 from core.logging_setup import install_excepthook, setup_logging
 from core.mood import Mood
+from core.needs import Needs
 from core.pet_spec import load_pet_spec
 from core.pointer import PetPointer
 from core.render_math import physical_scale
@@ -79,14 +80,23 @@ class DesktopPetApp:
             max_throw_speed=pointer_cfg.max_throw_speed * factor,
             velocity_window_s=pointer_cfg.velocity_window_s,
         )
+        food_path = self._root / "assets" / "items" / "food_bowl.png"
+        food_image = QImage(str(food_path))
+        if food_image.isNull():
+            self._log.warning("먹이 그림이 없어 먹이 기능을 끕니다: %s", food_path)
         self._pet = PetView(
             body, spec, sprites, self._poller,
             cfg.display.pet_scale, cfg.display.animation_fps,
             mood=Mood(cfg.mood),
             pointer=pointer,
+            needs=Needs(cfg.needs),
+            food_image=None if food_image.isNull() else food_image,
+            time_scale=cfg.debug.time_scale,
+            max_step_s=cfg.physics.max_step_s,
         )
         self._pet.hideRequested.connect(self.toggle_visible)
         self._pet.quitRequested.connect(self.quit)
+        self._pet.restartRequested.connect(self.restart_pet)
         cx, feet_y = self._spawn_point(factor)
         self._pet.spawn(cx, feet_y)
         self._pet.show()
@@ -95,6 +105,15 @@ class DesktopPetApp:
         self._pet.start()
         self._start_tray()
         self._log.info("펫을 시작했습니다: %s (배율 %d)", spec.key, factor)
+
+    def restart_pet(self) -> None:
+        """사망 후 다시 시작: 처음 위치 위에서 다시 떨어뜨린다."""
+        if self._pet is None:
+            return
+        factor = physical_scale(self._config.display.pet_scale, self._qt_app.primaryScreen().devicePixelRatio())
+        cx, feet_y = self._spawn_point(factor)
+        self._pet.restart(cx, feet_y)
+        self._log.info("펫을 다시 시작했습니다.")
 
     def _spawn_point(self, factor: float) -> tuple[float, float]:
         """첫 실행 위치: 첫 모니터 작업 영역 가운데 위에서 떨어뜨린다."""
