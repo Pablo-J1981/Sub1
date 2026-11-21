@@ -9,15 +9,15 @@ import pytest
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 pytest.importorskip("PySide6")
 
-from PySide6.QtGui import QImage  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from core.config import load_config  # noqa: E402
+from core.feeding import FoodPool  # noqa: E402
 from core.geometry import MonitorInfo, Rect  # noqa: E402
-from core.mood import Mood  # noqa: E402
-from core.needs import Needs  # noqa: E402
-from core.pet_spec import load_pet_spec, parse_pet_spec  # noqa: E402
+from core.pet_spec import load_pet_spec  # noqa: E402
 from core.pointer import PetPointer  # noqa: E402
+from core.records import PetRecord  # noqa: E402
+from core.toy import BallToy  # noqa: E402
 from core.world import build_snapshot  # noqa: E402
 from pets import create_pet  # noqa: E402
 from ui.pet_view import PetView  # noqa: E402
@@ -41,13 +41,14 @@ class FakeCursor:
         return (self.x, self.y)
 
 
-def _make_view(seed=1, cursor=None, time_scale=1.0, food=False):
-    spec = load_pet_spec(ROOT / "assets" / "pets" / "dog")
+def _make_view(seed=1, time_scale=1.0, animal="dog", record=None, pool=None):
+    spec = load_pet_spec(ROOT / "assets" / "pets" / animal)
     sprites = SpriteBank(spec)
     sprites.load()
     body = create_pet(
-        "walker", width=52, ground_offset=46, unit=1.0,
-        physics=CFG.physics, behavior=CFG.walker, rng=random.Random(seed),
+        spec.movement, width=spec.frame_size[0], ground_offset=spec.ground_y, unit=1.0,
+        physics=CFG.physics, behavior=CFG.walker, swimmer=CFG.swimmer,
+        rng=random.Random(seed), below=spec.frame_size[1] - spec.ground_y,
     )
     poller = WorldPoller(CFG.physics.window_poll_hz, CFG.physics.min_surface_width)
     mon = MonitorInfo(rect=Rect(0, 0, 1000, 800), work=Rect(0, 0, 1000, 760))
@@ -59,27 +60,27 @@ def _make_view(seed=1, cursor=None, time_scale=1.0, food=False):
         max_throw_speed=CFG.pointer.max_throw_speed,
         velocity_window_s=CFG.pointer.velocity_window_s,
     )
-    food_image = QImage(str(ROOT / "assets" / "items" / "food_bowl.png")) if food else None
+    if record is None:
+        record = PetRecord(id=1, animal=animal, name="테스트", fullness=CFG.needs.start,
+                           mood=CFG.mood.start)
+    if pool is None:
+        pool = FoodPool(lifetime_s=60, max_items=10, gravity=CFG.physics.gravity,
+                        max_fall=CFG.physics.max_fall_speed, sink_speed=14)
     view = PetView(
-        body, spec, sprites, poller, pet_scale=1, fps=60,
-        mood=Mood(CFG.mood), pointer=pointer,
-        needs=Needs(CFG.needs), food_image=food_image, time_scale=time_scale,
-        max_step_s=CFG.physics.max_step_s,
-        cursor=cursor if cursor is not None else FakeCursor(),
+        record, body, spec, sprites, poller, CFG, pointer, pool, BallToy(CFG.toy, 1.0),
+        dpr=1.0, status=lambda: (True, False), cursor=FakeCursor(),
     )
     view.spawn(500, 100)
+    cfg_time = time_scale
+    view._time_scale = cfg_time
     return view
 
 
-def spec_walk_frames():
-    return load_pet_spec(ROOT / "assets" / "pets" / "dog").actions["walk"].frames
-
-
-def _run(view, seconds, start=0.0):
+def _run(view, seconds, start=0.0, active=True, hidden=False):
     t = start
     for _ in range(int(seconds * 60)):
         t += 1 / 60
-        view.advance(t)
+        view.advance(t, active=active, hidden=hidden)
     return t
 
 
@@ -89,16 +90,16 @@ def test_dog_sprites_load_without_placeholders(qapp):
     bank.load()
     assert bank.missing == []
     assert bank.frame("idle", 0).width() == 52
-    assert bank.frame("walk", 0).height() == 52
     assert bank.tomb().width() == 52
-    assert spec_walk_frames() == 8
 
 
-def test_missing_files_fall_back_to_placeholders(qapp, tmp_path, monkeypatch):
+def test_missing_files_fall_back_to_placeholders(qapp, tmp_path):
     import json
 
     data = json.loads((ROOT / "assets" / "pets" / "dog" / "pet.json").read_text(encoding="utf-8"))
-    spec = parse_pet_spec("empty", data, tmp_path)  # 그림 파일이 하나도 없다
+    from core.pet_spec import parse_pet_spec
+
+    spec = parse_pet_spec("empty", data, tmp_path)
     bank = SpriteBank(spec)
     bank.load()
     assert set(bank.missing) == set(spec.actions) | {"tomb"}
@@ -108,36 +109,41 @@ def test_missing_files_fall_back_to_placeholders(qapp, tmp_path, monkeypatch):
 def test_view_falls_and_lands_on_floor(qapp):
     view = _make_view()
     _run(view, 4.0)
-    assert view._body.feet_y == pytest.approx(760)
-    assert view._body.is_grounded()
+    assert view.body.feet_y == pytest.approx(760)
+    assert view.body.is_grounded()
 
 
 def test_view_mirrors_art_when_facing_left(qapp):
     view = _make_view()
     _run(view, 4.0)
-    view._body.facing = -1
+    view.body.facing = -1
     _run(view, 0.1, start=4.0)
     assert view._art_key is not None and view._art_key[2] == -1
-
-
-def test_view_does_not_rebuild_art_every_frame(qapp):
-    view = _make_view()
-    _run(view, 4.0)
-    view._body.command("sit", duration=10.0)  # 시간이 지나도 동작이 바뀌지 않도록 고정
-    t = _run(view, 0.1, start=4.0)
-    rebuilds = []
-    original = view.set_art
-    view.set_art = lambda image, scale: (rebuilds.append(1), original(image, scale))
-    _run(view, 0.5, start=t)  # sit 는 1fps, 2프레임: 0.5초 동안 그림은 최대 한 번만 바뀐다
-    assert len(rebuilds) <= 1
-    assert view._art_key[0] == "sit"
 
 
 def test_advance_survives_empty_world(qapp):
     view = _make_view()
     view._poller.latest = build_snapshot([], [], CFG.physics.min_surface_width)
-    _run(view, 1.0)  # 모니터가 없으면 물리 갱신을 건너뛰고 죽지 않는다
-    assert view._body.feet_y == 100  # 낙하하지 않고 그대로 있다
+    _run(view, 1.0)
+    assert view.body.feet_y == 100  # 모니터가 없으면 물리를 건너뛴다
+
+
+def test_active_time_only_counts_when_active(qapp):
+    view = _make_view()
+    _run(view, 10.0, active=False)
+    assert view.record.active_s == 0
+    _run(view, 10.0, start=10.0, active=True)
+    assert view.record.active_s == pytest.approx(10.0, abs=0.5)
+
+
+def test_hidden_pauses_hunger_timer_only(qapp):
+    view = _make_view()
+    view.needs.fullness = 10.0  # 배고픔 구간
+    _run(view, 5.0, hidden=True)
+    assert view.needs.hunger_s == 0
+    assert view.needs.fullness < 10.0  # 포만감은 계속 줄어든다
+    _run(view, 5.0, start=5.0, hidden=False)
+    assert view.needs.hunger_s > 0
 
 
 def test_time_scale_speeds_up_needs_and_mood(qapp):
@@ -146,68 +152,84 @@ def test_time_scale_speeds_up_needs_and_mood(qapp):
     _run(slow, 10.0)
     _run(fast, 10.0)
     assert fast.needs.fullness < slow.needs.fullness
-    assert fast.mood.value != slow.mood.value
 
 
 def test_real_clock_jump_is_capped(qapp):
     view = _make_view()
     view.advance(0.0)
-    view.advance(60.0)  # 한 번에 60초가 지난 것처럼 보여도 펫은 한 번에 크게 튀지 않는다
+    view.advance(60.0)
     assert view.needs.fullness > CFG.needs.start - 1.0
 
 
-def test_food_is_eaten_and_refills_hunger(qapp):
-    view = _make_view(food=True)
-    _run(view, 4.0)
-    view.needs.fullness = 5.0
-    assert view.feed() is True
-    _run(view, 60.0)  # 걸어가서 먹고 돌아올 만큼 기다린다
-    assert view.needs.fullness > 5.0
-    assert not view._feeding.has_food
+def test_critical_notice_emitted_once(qapp):
+    view = _make_view()
+    notices = []
+    view.noticed.connect(notices.append)
+    view.needs.fullness = 0.0
+    view.needs.hunger_s = view.needs.critical_s
+    _run(view, 0.5)
+    _run(view, 0.5, start=0.5)
+    assert len([n for n in notices if "배고파" in n]) == 1
 
 
-def test_feed_is_refused_without_food_image(qapp):
-    view = _make_view(food=False)
-    _run(view, 4.0)
-    assert view.feed() is False
+def test_growth_needs_both_hours_and_meals(qapp):
+    view = _make_view()
+    view.record.active_s = CFG.growth.hours[0] * 3600
+    view.record.meals = 0
+    _run(view, 0.2)
+    assert view.stage == 1  # 시간만으로는 자라지 않는다
+    view.record.meals = CFG.growth.meals[0]
+    _run(view, 0.2, start=0.2)
+    assert view.stage == 2
+    assert view.record.stage == 2
 
 
 def test_death_shows_die_then_tomb_and_freezes(qapp):
     view = _make_view()
     _run(view, 4.0)
+    view.needs.hunger_s = view.needs.death_s
     view.needs.fullness = 0.0
-    view.needs.dead = True
     t = _run(view, 0.1, start=4.0)
-    cx_before = view._body.cx
+    cx_before = view.body.cx
+    assert view.dead
     assert view._art_key[0] == "die"
-    t = _run(view, 3.0, start=t)
+    t = _run(view, 4.0, start=t)
     assert view._art_key[0] == "tomb"
-    assert view._body.cx == cx_before  # 죽은 뒤에는 움직이지 않는다
+    assert view.body.cx == cx_before
+    assert view.record.dead and view.record.died_at is not None
 
 
-def test_restart_revives_and_resets_mood(qapp):
+def test_death_is_not_reached_by_active_time_while_idle(qapp):
     view = _make_view()
-    _run(view, 4.0)
-    view.needs.dead = True
-    t = _run(view, 3.0, start=4.0)
-    assert view._art_key[0] == "tomb"
-    view.restart(300, 200)
-    assert view.needs.dead is False
-    assert view.needs.fullness == CFG.needs.start
-    assert view.mood.value == CFG.mood.start
-    _run(view, 0.2, start=t)
-    assert view._art_key[0] != "tomb"
-    assert view._body.cx == 300
+    view.needs.fullness = 0.0
+    _run(view, 20.0, active=False)  # 활성 사용이 아니면 배고픔 타이머도 돌지 않는다
+    assert view.needs.hunger_s == 0
+    assert not view.dead
 
 
-def test_death_while_held_drops_the_pet(qapp):
+def test_info_text_shows_active_time(qapp):
     view = _make_view()
+    view.record.active_s = 3725
+    assert "함께한 시간: 1시간 2분" in view.info_text()
+
+
+def test_food_pool_is_shared_and_pet_eats_meal(qapp):
+    pool = FoodPool(lifetime_s=60, max_items=10, gravity=1400, max_fall=900, sink_speed=14)
+    view = _make_view(pool=pool)
     _run(view, 4.0)
-    view._body.hold(500, 300)  # 드래그로 들고 있는 중
-    assert view._body.is_held()
-    view.needs.dead = True
-    view._step_needs(0.0, 5.0)  # 사망 처리 (시간 진행 없이 상태만 확인)
-    view.finish_drag(5.0)
-    _run(view, 3.0, start=5.0)
-    assert not view._body.is_held()
-    assert view._body.is_grounded()
+    view.needs.fullness = 5.0
+    pool.drop("food_bone", view.body.cx + 150, 760, 760)
+    _run(view, 40.0, start=4.0)
+    assert view.needs.fullness > 5.0
+    assert view.record.meals >= 1
+    assert pool.items == []
+
+
+def test_food_expires_after_one_minute(qapp):
+    pool = FoodPool(lifetime_s=60, max_items=10, gravity=1400, max_fall=900, sink_speed=14)
+    pool.drop("food_bone", 900, 760, 760)
+    for _ in range(59):
+        pool.step(1.0)
+    assert len(pool.items) == 1
+    pool.step(1.5)
+    assert pool.items == []

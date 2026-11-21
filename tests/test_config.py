@@ -25,6 +25,9 @@ def test_parse_valid_config():
 def test_shipped_settings_file_is_valid():
     cfg = load_config(ROOT / "config" / "settings.json")
     assert cfg.version == 1
+    assert cfg.food.lifetime_s == 60
+    assert cfg.needs.decay_per_hour == 20
+    assert cfg.growth.hours == (5, 20, 50, 100)
 
 
 @pytest.mark.parametrize(
@@ -50,6 +53,14 @@ def test_shipped_settings_file_is_valid():
         lambda d: d["debug"].update(time_scale=21),
         lambda d: d["needs"].update(hungry_below=-1),
         lambda d: d.pop("mood"),
+        lambda d: d["needs"].update(critical_hours=9),  # 위독은 사망 시간보다 빨라야 한다
+        lambda d: d["growth"].update(hours=[5, 1, 50, 100]),  # 작은 값부터 순서대로
+        lambda d: d["growth"].update(meals=[5, 20, 50]),  # 길이 4 필요
+        lambda d: d["growth"].update(pixel_scale=[0, 2, 3, 3, 4]),
+        lambda d: d["food"].update(lifetime_s=0),
+        lambda d: d["toy"].update(play_s=-1),
+        lambda d: d["activity"].update(idle_pause_s=0),
+        lambda d: d.pop("swimmer"),
     ],
 )
 def test_invalid_config_raises(mutate):

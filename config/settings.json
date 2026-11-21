@@ -38,6 +38,16 @@
       "sleep": 0.1
     }
   },
+  "swimmer": {
+    "swim_speed": 24,
+    "turn_s": 1.0,
+    "retarget_s": [4.0, 8.0],
+    "sink_speed": 14,
+    "startle_radius": 120,
+    "startle_cursor_speed": 900,
+    "startle_speed": 110,
+    "startle_duration_s": 1.5
+  },
   "pointer": {
     "drag_threshold_px": 4,
     "min_stroke_px": 20,
@@ -55,10 +65,30 @@
   },
   "needs": {
     "start": 70,
-    "decay_per_s": 0.5,
+    "decay_per_hour": 20,
     "hungry_below": 30,
-    "starve_death_s": 120,
-    "food_amount": 40,
+    "critical_hours": 3,
+    "death_hours": 8,
+    "food_amount": 20,
+    "eat_refuse_at": 80,
     "eat_duration_s": 3.0
+  },
+  "growth": {
+    "hours": [5, 20, 50, 100],
+    "meals": [5, 20, 50, 100],
+    "pixel_scale": [2, 2, 3, 3, 4]
+  },
+  "activity": {
+    "idle_pause_s": 600,
+    "autosave_s": 60
+  },
+  "food": {
+    "lifetime_s": 60,
+    "max_items": 10
+  },
+  "toy": {
+    "play_s": 20,
+    "push_speed": 25,
+    "friction": 120
   }
 }

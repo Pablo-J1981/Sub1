@@ -19,6 +19,7 @@ import random
 from enum import Enum, auto
 
 from core.config import PhysicsConfig, WalkerConfig
+from core.feeding import Reach
 from core.geometry import Rect, Surface
 from core.world import WorldSnapshot
 from pets.base import PetBody
@@ -107,12 +108,15 @@ class WalkerPet(PetBody):
         self._at_food = False               # 목표 x에 도착해 먹기를 기다리는 중
         self._meal_done = False             # 먹기가 끝났음 (take_meal 로 한 번만 알린다)
         self._frozen = False                # 사망: 제자리에 멈추고 발판만 따라간다
+        self._drop_dir: int | None = None   # 먹이가 아래에 있을 때 뛰어내릴 방향
+        self._pinned = False                # 무덤: 물리 없이 제자리에 있다
 
     # ------------------------------------------------------------------ 외부 인터페이스
 
     def place(self, cx: float, feet_y: float) -> None:
         """위치를 지정하고 낙하 상태로 만든다 (스폰, 드래그 놓기 등)."""
         self._clear_goal()
+        self._pinned = False
         self.cx = float(cx)
         self.feet_y = float(feet_y)
         self._seg = None
@@ -182,6 +186,50 @@ class WalkerPet(PetBody):
 
     # ------------------------------------------------------------------ 먹이 관련 (PetBody 기본값 재정의)
 
+    def settled(self) -> bool:
+        return self.is_grounded()
+
+    def pin(self, cx: float, feet_y: float) -> None:
+        self._clear_goal()
+        self._pinned = True
+        self.below = 0.0
+        self._seg = None
+        self._departed = None
+        self.vx = 0.0
+        self.vy = 0.0
+        self.cx = float(cx)
+        self.feet_y = float(feet_y)
+
+    def reach_food(self, x: float, y: float) -> Reach:
+        seg, mon = self._seg, self._monitor
+        if self._frozen or self._pinned or not self.is_grounded() or seg is None or mon is None:
+            return Reach.OUT
+        tol = self._tolerance
+        if y < seg.y - tol:
+            return Reach.ABOVE
+        left, right, cliff_left, cliff_right = self._walk_limits(seg, mon)
+        if y > seg.y + tol:
+            cliff = cliff_right if x >= self.cx else cliff_left
+            return Reach.BELOW if cliff else Reach.OUT
+        return Reach.REACH if left <= x <= right else Reach.OUT
+
+    def approach_food(self, x: float, y: float) -> None:
+        self.walk_to(x)
+
+    def approach_drop(self, x: float, y: float) -> None:
+        seg, mon = self._seg, self._monitor
+        if self._frozen or seg is None or mon is None or not self.is_grounded():
+            return
+        direction = 1 if x >= self.cx else -1
+        left, right, cliff_left, cliff_right = self._walk_limits(seg, mon)
+        if not (cliff_right if direction > 0 else cliff_left):
+            return
+        edge = right if direction > 0 else left
+        if self._drop_dir == direction and self._target == edge:
+            return
+        self.walk_to(edge)  # walk_to 가 _drop_dir 을 지우므로 그 뒤에 설정한다
+        self._drop_dir = direction
+
     def ground_surface(self) -> Surface | None:
         return self._seg if self.is_grounded() else None
 
@@ -197,7 +245,7 @@ class WalkerPet(PetBody):
 
     def walk_to(self, x: float) -> bool:
         """현재 발판 안의 x로 걸어간다. 같은 목표를 여러 번 불러도 다시 출발하지 않는다."""
-        if self._frozen or self.state not in BEHAVIOR_STATES.values():
+        if self._frozen or self._pinned or self.state not in BEHAVIOR_STATES.values():
             return False
         reach = self.reach_range()
         if reach is None:
@@ -207,6 +255,7 @@ class WalkerPet(PetBody):
             return True
         self._target = target
         self._at_food = False
+        self._drop_dir = None
         self._begin(WalkerState.WALK, _FOREVER_S)
         return True
 
@@ -219,13 +268,7 @@ class WalkerPet(PetBody):
 
     def arrived(self) -> bool:
         """목표 x에 도착해서 먹기를 기다리는지."""
-        seg = self._seg
-        return (
-            self._at_food
-            and self.state is WalkerState.IDLE
-            and seg is not None
-            and seg.is_floor
-        )
+        return self._at_food and self.state is WalkerState.IDLE and self._seg is not None
 
     def begin_eat(self, duration: float) -> bool:
         if not self.arrived():
@@ -276,6 +319,8 @@ class WalkerPet(PetBody):
 
     def update(self, dt: float, world: WorldSnapshot) -> None:
         dt = min(max(dt, 0.0), self._max_step)
+        if self._pinned:
+            return
         mon = world.monitor_for(self.cx)
         if mon is None:
             return
@@ -407,6 +452,16 @@ class WalkerPet(PetBody):
         step = self._walk_speed * dt
         if abs(target - self.cx) <= step:
             self.cx = target
+            if self._drop_dir is not None:
+                # 가장자리에 도착: 잠깐 망설인 뒤 뛰어내린다
+                direction = self._drop_dir
+                self._clear_goal()
+                self._edge_dir = direction
+                self.facing = direction
+                self.vx = 0.0
+                self._begin(WalkerState.SCARED, self._rng.uniform(*self._beh.scared_duration_s))
+                self._jump_planned = True
+                return
             self._at_food = True
             self._begin(WalkerState.IDLE, _FOREVER_S)  # 먹이를 먹을 때까지 기다린다
             return
@@ -503,6 +558,7 @@ class WalkerPet(PetBody):
         """먹이 쪽 걷기 목표를 버린다. 먹이용으로 길게 잡은 쉼/걷기 시간도 되돌린다."""
         self._target = None
         self._at_food = False
+        self._drop_dir = None
         if self.state in (WalkerState.WALK, WalkerState.IDLE) and self.timer >= _FOREVER_S / 2:
             self._enter_idle()
 

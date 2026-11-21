@@ -1,10 +1,7 @@
-"""설정 파일(config/settings.json) 로딩과 검증.
+"""설정 파일(config/settings.json) 로딩과 검증. Qt/Win32 비의존.
 
-이 모듈은 Qt에 의존하지 않는다. 모든 수치는 설정 파일에 있으며,
-여기서는 타입과 범위만 검증한다.
-
+모든 수치는 설정 파일에 있고, 여기서는 타입과 범위만 검증한다.
 물리/행동 수치 단위: 별도 표기가 없으면 "원본 픽셀"(스프라이트 한 칸 기준)이다.
-실행 시 DPI 배율을 곱해 물리 픽셀로 바꾼다.
 """
 
 from __future__ import annotations
@@ -25,35 +22,35 @@ class ConfigError(ValueError):
 @dataclass(frozen=True)
 class DisplayConfig:
     animation_fps: float
-    pet_scale: int  # 논리 픽셀 기준 정수 배율 (DPI 배율은 별도로 곱해진다)
+    pet_scale: int  # 먹이, 공, 무덤 등 물건 그림의 정수 배율 (펫 크기는 growth.pixel_scale)
 
 
 @dataclass(frozen=True)
 class DebugConfig:
     placeholder_frame_size: tuple[int, int]
-    start_pet: str  # 저장 데이터 도입 전 임시로 띄울 동물 폴더 이름
-    time_scale: float  # 시간 배속. 1.0이 보통 속도. 펫 안의 시간(기분, 포만감, 움직임)에만 적용
+    start_pet: str  # 처음 펫이 없을 때 쓸 기본 동물 (첫 실행 창의 기본 선택)
+    time_scale: float  # 시간 배속. 펫 안의 시간(성장, 포만감, 움직임)에만 적용
 
 
 @dataclass(frozen=True)
 class PhysicsConfig:
-    gravity: float            # 원본 px/s^2
-    max_fall_speed: float     # 원본 px/s
+    gravity: float
+    max_fall_speed: float
     landing_duration_s: float
-    min_surface_width: float  # 원본 px. 이보다 짧은 발판은 무시
-    support_tolerance: float  # 원본 px. 발판 높이 판정 허용 오차
-    window_poll_hz: float     # 창 목록 갱신 빈도
-    spawn_height: float       # 원본 px. 펫을 처음 놓는 높이 (작업 영역 윗변 위)
-    max_step_s: float         # 한 번의 갱신에 시뮬레이션하는 최대 시간(초)
+    min_surface_width: float
+    support_tolerance: float
+    window_poll_hz: float
+    spawn_height: float
+    max_step_s: float
 
 
 @dataclass(frozen=True)
 class WalkerConfig:
-    walk_speed: float         # 원본 px/s
-    jump_up_speed: float      # 원본 px/s (뛰어내릴 때 살짝 위로 튀는 속도)
-    jump_off_speed: float     # 원본 px/s (가장자리에서 밖으로 밀리는 속도)
-    jump_off_chance: float    # 0~1, 가장자리에서 용기를 내어 뛰어내릴 확률
-    edge_margin: float        # 원본 px. 가장자리에서 이만큼 떨어진 곳에서 멈춤
+    walk_speed: float
+    jump_up_speed: float
+    jump_off_speed: float
+    jump_off_chance: float
+    edge_margin: float
     scared_duration_s: tuple[float, float]
     startled_duration_s: float
     idle_duration_s: tuple[float, float]
@@ -64,32 +61,72 @@ class WalkerConfig:
 
 
 @dataclass(frozen=True)
+class SwimmerConfig:
+    swim_speed: float            # 원본 px/s
+    turn_s: float                # 방향을 바꾸는 데 걸리는 시간(초)
+    retarget_s: tuple[float, float]
+    sink_speed: float            # 원본 px/s. 죽은 뒤 가라앉는 속도
+    startle_radius: float        # 원본 px. 빠른 커서가 이 안으로 들어오면 놀란다
+    startle_cursor_speed: float  # 원본 px/s. 이보다 빠른 커서에만 놀란다
+    startle_speed: float         # 원본 px/s. 놀라서 달아나는 속도
+    startle_duration_s: float
+
+
+@dataclass(frozen=True)
 class PointerConfig:
-    drag_threshold_px: float  # 원본 px. 누른 채 이만큼 움직여야 드래그로 본다
-    min_stroke_px: float      # 원본 px. 쓰다듬기 한 번으로 인정하는 좌우 왕복의 한쪽 거리
-    throw_inertia: float      # 놓을 때 마우스 속도에 곱하는 배율 (던지기 관성)
-    max_throw_speed: float    # 원본 px/s. 던지는 속도 상한
-    velocity_window_s: float  # 던지기 속도를 재는 최근 구간(초)
+    drag_threshold_px: float
+    min_stroke_px: float
+    throw_inertia: float
+    max_throw_speed: float
+    velocity_window_s: float
 
 
 @dataclass(frozen=True)
 class MoodConfig:
-    start: float              # 0~100. 실행 직후 기분
-    pet_gain: float           # 쓰다듬기 한 번에 오르는 기분
-    pet_joy_duration_s: float # 쓰다듬기 후 기뻐하는 시간(초)
-    drop_penalty: float       # 들었다 놓을 때 내려가는 기분
-    decay_per_s: float        # 중립(50)을 향해 초당 움직이는 양
-    sad_below: float          # 이 값 이하이면 우울한 그림을 보인다
+    start: float
+    pet_gain: float
+    pet_joy_duration_s: float
+    drop_penalty: float
+    decay_per_s: float
+    sad_below: float
 
 
 @dataclass(frozen=True)
 class NeedsConfig:
-    start: float              # 0~100. 처음 포만감
-    decay_per_s: float        # 초당 줄어드는 포만감
-    hungry_below: float       # 이 값 미만이면 배고픈 그림
-    starve_death_s: float     # 포만감 0 상태가 이 시간(펫 시간, 초) 이어지면 사망
-    food_amount: float        # 먹이 한 번에 차는 포만감
-    eat_duration_s: float     # 먹는 데 걸리는 시간(초)
+    start: float            # 처음 포만감 (0~100)
+    decay_per_hour: float   # 활성 사용 1시간에 줄어드는 포만감
+    hungry_below: float     # 이 값 이하가 되면 배고픔 타이머가 돈다
+    critical_hours: float   # 배고픔 타이머가 이 시간이면 위독
+    death_hours: float      # 배고픔 타이머가 이 시간이면 사망
+    food_amount: float      # 한 끼에 차는 포만감
+    eat_refuse_at: float    # 포만감이 이 값 이상이면 먹지 않는다
+    eat_duration_s: float   # 먹는 데 걸리는 시간(초)
+
+
+@dataclass(frozen=True)
+class GrowthConfig:
+    hours: tuple[float, ...]    # 1→2, 2→3, 3→4, 4→5 단계로 넘어가는 활성 시간(시간 단위)
+    meals: tuple[int, ...]      # 같은 단계에서 필요한 누적 먹은 횟수 (시간과 함께 둘 다 채워야 한다)
+    pixel_scale: tuple[int, ...]  # 단계별 정수 배율 (1~5단계)
+
+
+@dataclass(frozen=True)
+class ActivityConfig:
+    idle_pause_s: float  # 마지막 입력 후 이 시간이 지나면 활성 사용 시간이 멈춘다
+    autosave_s: float    # 자동 저장 간격
+
+
+@dataclass(frozen=True)
+class FoodConfig:
+    lifetime_s: float  # 먹이가 놓인 뒤 이 시간이 지나면 사라진다 (실제 시간)
+    max_items: int     # 동시에 놓을 수 있는 먹이 개수
+
+
+@dataclass(frozen=True)
+class ToyConfig:
+    play_s: float      # 공이 머무는 시간 (실제 시간)
+    push_speed: float  # 원본 px/s. 펫이 밀 때 공이 굴러가는 속도
+    friction: float    # 원본 px/s^2. 밀린 뒤 공이 멈추는 감속
 
 
 @dataclass(frozen=True)
@@ -99,9 +136,14 @@ class AppConfig:
     debug: DebugConfig
     physics: PhysicsConfig
     walker: WalkerConfig
+    swimmer: SwimmerConfig
     pointer: PointerConfig
     mood: MoodConfig
     needs: NeedsConfig
+    growth: GrowthConfig
+    activity: ActivityConfig
+    food: FoodConfig
+    toy: ToyConfig
 
 
 def _require_dict(data: Any, key: str) -> dict:
@@ -151,6 +193,25 @@ def _require_pair(section: dict, key: str, lo: float, hi: float) -> tuple[float,
     return low, high
 
 
+def _require_list(section: dict, key: str, count: int, lo: float, hi: float, ints: bool) -> tuple:
+    """길이가 정해진 숫자 목록. 값은 모두 [lo, hi] 안, 단조 증가(같은 값 허용)."""
+    value = section.get(key)
+    if not isinstance(value, list) or len(value) != count:
+        raise ConfigError(f"'{key}' 은(는) 길이 {count} 인 목록이어야 합니다.")
+    out = []
+    for v in value:
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
+            raise ConfigError(f"'{key}' 의 값은 모두 숫자여야 합니다.")
+        if ints and not isinstance(v, int):
+            raise ConfigError(f"'{key}' 의 값은 모두 정수여야 합니다.")
+        if not lo <= v <= hi:
+            raise ConfigError(f"'{key}' 의 값은 {lo} 이상 {hi} 이하여야 합니다. (현재: {v})")
+        out.append(int(v) if ints else float(v))
+    if any(b < a for a, b in zip(out, out[1:])):
+        raise ConfigError(f"'{key}' 은(는) 작은 값부터 순서대로 적어야 합니다.")
+    return tuple(out)
+
+
 def _require_weights(section: dict, key: str) -> dict[str, float]:
     value = section.get(key)
     if not isinstance(value, dict) or set(value) != set(ACTION_WEIGHT_KEYS):
@@ -179,9 +240,14 @@ def parse_config(data: dict) -> AppConfig:
     debug = _require_dict(data, "debug")
     physics = _require_dict(data, "physics")
     walker = _require_dict(data, "walker")
+    swimmer = _require_dict(data, "swimmer")
     pointer = _require_dict(data, "pointer")
     mood = _require_dict(data, "mood")
     needs = _require_dict(data, "needs")
+    growth = _require_dict(data, "growth")
+    activity = _require_dict(data, "activity")
+    food = _require_dict(data, "food")
+    toy = _require_dict(data, "toy")
 
     frame_size = debug.get("placeholder_frame_size")
     if (
@@ -190,6 +256,19 @@ def parse_config(data: dict) -> AppConfig:
         or not all(isinstance(v, int) and not isinstance(v, bool) and v > 0 for v in frame_size)
     ):
         raise ConfigError("'placeholder_frame_size' 은(는) 양의 정수 두 개 [w, h] 여야 합니다.")
+
+    needs_cfg = NeedsConfig(
+        start=_require_number(needs, "start", 0, 100),
+        decay_per_hour=_require_number(needs, "decay_per_hour", 0, 100),
+        hungry_below=_require_number(needs, "hungry_below", 0, 100),
+        critical_hours=_require_number(needs, "critical_hours", 0.01, 1000),
+        death_hours=_require_number(needs, "death_hours", 0.01, 1000),
+        food_amount=_require_number(needs, "food_amount", 0, 100),
+        eat_refuse_at=_require_number(needs, "eat_refuse_at", 0, 100),
+        eat_duration_s=_require_number(needs, "eat_duration_s", 0.1, 60),
+    )
+    if needs_cfg.critical_hours >= needs_cfg.death_hours:
+        raise ConfigError("'critical_hours' 은(는) 'death_hours' 보다 작아야 합니다.")
 
     return AppConfig(
         version=version,
@@ -226,6 +305,16 @@ def parse_config(data: dict) -> AppConfig:
             sleep_duration_s=_require_pair(walker, "sleep_duration_s", 0, 3600),
             action_weights=_require_weights(walker, "action_weights"),
         ),
+        swimmer=SwimmerConfig(
+            swim_speed=_require_number(swimmer, "swim_speed", 0, 500),
+            turn_s=_require_number(swimmer, "turn_s", 0.01, 60),
+            retarget_s=_require_pair(swimmer, "retarget_s", 0.1, 3600),
+            sink_speed=_require_number(swimmer, "sink_speed", 0, 500),
+            startle_radius=_require_number(swimmer, "startle_radius", 0, 2000),
+            startle_cursor_speed=_require_number(swimmer, "startle_cursor_speed", 0, 20_000),
+            startle_speed=_require_number(swimmer, "startle_speed", 0, 1000),
+            startle_duration_s=_require_number(swimmer, "startle_duration_s", 0, 60),
+        ),
         pointer=PointerConfig(
             drag_threshold_px=_require_number(pointer, "drag_threshold_px", 0, 1000),
             min_stroke_px=_require_number(pointer, "min_stroke_px", 0, 1000),
@@ -241,13 +330,24 @@ def parse_config(data: dict) -> AppConfig:
             decay_per_s=_require_number(mood, "decay_per_s", 0, 100),
             sad_below=_require_number(mood, "sad_below", 0, 100),
         ),
-        needs=NeedsConfig(
-            start=_require_number(needs, "start", 0, 100),
-            decay_per_s=_require_number(needs, "decay_per_s", 0, 100),
-            hungry_below=_require_number(needs, "hungry_below", 0, 100),
-            starve_death_s=_require_number(needs, "starve_death_s", 1, 86_400),
-            food_amount=_require_number(needs, "food_amount", 0, 100),
-            eat_duration_s=_require_number(needs, "eat_duration_s", 0.1, 60),
+        needs=needs_cfg,
+        growth=GrowthConfig(
+            hours=_require_list(growth, "hours", 4, 0, 100_000, ints=False),
+            meals=_require_list(growth, "meals", 4, 0, 100_000, ints=True),
+            pixel_scale=_require_list(growth, "pixel_scale", 5, 1, 16, ints=True),
+        ),
+        activity=ActivityConfig(
+            idle_pause_s=_require_number(activity, "idle_pause_s", 1, 86_400),
+            autosave_s=_require_number(activity, "autosave_s", 5, 3600),
+        ),
+        food=FoodConfig(
+            lifetime_s=_require_number(food, "lifetime_s", 1, 3600),
+            max_items=_require_int(food, "max_items", 1, 50),
+        ),
+        toy=ToyConfig(
+            play_s=_require_number(toy, "play_s", 1, 3600),
+            push_speed=_require_number(toy, "push_speed", 0, 500),
+            friction=_require_number(toy, "friction", 0, 10_000),
         ),
     )
 

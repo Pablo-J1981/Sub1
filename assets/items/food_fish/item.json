@@ -1,0 +1,7 @@
+{
+  "id": "food_fish",
+  "kind": "food",
+  "name_ko": "생선",
+  "image": "image.png",
+  "sinks": true
+}

@@ -10,6 +10,7 @@ from __future__ import annotations
 from PySide6.QtGui import QImage
 
 from core.render_math import physical_scale
+from platform_win.click_region import set_click_region
 from platform_win.windows import move_window
 from ui.overlay_window import OverlayWindow
 
@@ -43,6 +44,10 @@ class ItemView(OverlayWindow):
     def hide_item(self) -> None:
         self._wanted = False
         self._refresh()
+
+    def set_passive(self) -> None:
+        """클릭을 모두 뒤쪽 창으로 넘긴다 (먹이, 공처럼 누를 필요가 없는 물건)."""
+        set_click_region(int(self.winId()), [])
 
     def set_allowed(self, allowed: bool) -> None:
         self._allowed = bool(allowed)

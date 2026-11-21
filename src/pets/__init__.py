@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import random
 
-from core.config import PhysicsConfig, WalkerConfig
+from core.config import PhysicsConfig, SwimmerConfig, WalkerConfig
 from pets.base import PetBody
+from pets.swimmer import SwimmerPet
 from pets.walker import WalkerPet
 
 
@@ -17,7 +18,9 @@ def create_pet(
     unit: float,
     physics: PhysicsConfig,
     behavior: WalkerConfig,
+    swimmer: SwimmerConfig,
     rng: random.Random,
+    below: float = 0.0,
 ) -> PetBody:
     if movement == "walker":
         return WalkerPet(
@@ -29,5 +32,13 @@ def create_pet(
             rng=rng,
         )
     if movement == "swimmer":
-        raise NotImplementedError("헤엄 타입은 6단계에서 구현됩니다.")
+        return SwimmerPet(
+            width=width,
+            ground_offset=ground_offset,
+            unit=unit,
+            physics=physics,
+            behavior=swimmer,
+            rng=rng,
+            below=below,
+        )
     raise ValueError(f"알 수 없는 이동 타입: {movement!r}")

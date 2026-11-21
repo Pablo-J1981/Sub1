@@ -110,6 +110,45 @@ def get_cursor_pos() -> tuple[int, int]:
     return (p.x, p.y)
 
 
+class _LASTINPUTINFO(ctypes.Structure):
+    _fields_ = [("cbSize", wintypes.UINT), ("dwTime", wintypes.DWORD)]
+
+
+if IS_WINDOWS:
+    _user32.GetLastInputInfo.argtypes = [ctypes.POINTER(_LASTINPUTINFO)]
+    _user32.GetLastInputInfo.restype = wintypes.BOOL
+    _kernel32 = ctypes.WinDLL("kernel32")
+    _kernel32.GetTickCount.restype = wintypes.DWORD
+
+
+VK_LBUTTON = 0x01
+VK_RBUTTON = 0x02
+VK_ESCAPE = 0x1B
+
+if IS_WINDOWS:
+    _user32.GetAsyncKeyState.argtypes = [ctypes.c_int]
+    _user32.GetAsyncKeyState.restype = ctypes.c_short
+
+
+def key_down(vk: int) -> bool:
+    """지금 키(또는 마우스 버튼)가 눌려 있는지. 다른 OS에서는 False."""
+    if not IS_WINDOWS:
+        return False
+    return bool(_user32.GetAsyncKeyState(vk) & 0x8000)
+
+
+def idle_seconds() -> float:
+    """마지막 키보드/마우스 입력 후 흐른 시간(초). 다른 OS나 실패 시 0 (활성으로 본다)."""
+    if not IS_WINDOWS:
+        return 0.0
+    info = _LASTINPUTINFO()
+    info.cbSize = ctypes.sizeof(info)
+    if not _user32.GetLastInputInfo(ctypes.byref(info)):
+        return 0.0
+    now = _kernel32.GetTickCount()
+    return ((now - info.dwTime) & 0xFFFFFFFF) / 1000.0
+
+
 def _to_rect(r: _RECT) -> Rect:
     return Rect(r.left, r.top, r.right, r.bottom)
 
